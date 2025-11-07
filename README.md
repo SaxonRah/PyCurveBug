@@ -1,0 +1,2 @@
+# PyCurveBug
+OpenSource CurveBug Software
