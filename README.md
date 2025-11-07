@@ -1,6 +1,8 @@
 # PyCurveBug
 OpenSource CurveBug Software
 
+![Untitled.png](/Untitled.png)
+
 REQUIRED:
 * PySerial
 * PyGame
