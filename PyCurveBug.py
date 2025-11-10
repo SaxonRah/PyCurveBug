@@ -17,6 +17,7 @@ Shows TWO I-V curves on the same plot:
 2. Axis labels: Voltage (X-axis) vs Current (Y-axis) for I-V curves
 3. Data interpretation matches official CurveBug software
 4. Fixed scaling matches original C++ implementation by default
+5. Pan/Zoom navigation in fixed mode
 """
 
 import pygame
@@ -116,6 +117,14 @@ class CurveTracerDual:
         self.single_channel = False  # S key - show only black trace
         self.auto_scale = False  # A key - toggle auto-scaling (default: fixed scale)
         self.excitation_mode = 0  # 0=4.7k(T), 1=100k weak(W), 2=alternating(T+W)
+
+        # Pan and Zoom for fixed mode
+        self.zoom_level = 1.0  # 1.0 = normal, >1 = zoomed in, <1 = zoomed out
+        self.pan_offset_x = 0.0  # Pan offset in ADC units
+        self.pan_offset_y = 0.0  # Pan offset in ADC units
+        self.dragging = False
+        self.drag_start_pos = None
+        self.drag_start_offset = None
 
     def connect(self):
         try:
@@ -242,29 +251,91 @@ class CurveTracerDual:
             print(f"Error: {e}")
             return False
 
+    def fit_to_window(self):
+        """Calculate zoom and pan to show all data in fixed scale mode"""
+        if not self.ch1 or not self.ch2:
+            return
+
+        # Get data ranges
+        if self.excitation_mode == 2 and len(self.ch1_std) > 0 and len(self.ch1_weak) > 0:
+            all_x = self.ch1_voltage_std + self.ch2_voltage_std + self.ch1_voltage_weak + self.ch2_voltage_weak
+            all_y = self.ch1_std + self.ch2_std + self.ch1_weak + self.ch2_weak
+        else:
+            all_x = self.ch1_voltage + self.ch2_voltage
+            all_y = self.ch1 + self.ch2
+
+        data_x_min = min(all_x)
+        data_x_max = max(all_x)
+        data_y_min = min(all_y)
+        data_y_max = max(all_y)
+
+        # Add 20% margin around data for visibility
+        x_margin = (data_x_max - data_x_min) * 0.2
+        y_margin = (data_y_max - data_y_min) * 0.2
+        data_x_min -= x_margin
+        data_x_max += x_margin
+        data_y_min -= y_margin
+        data_y_max += y_margin
+
+        data_x_range = data_x_max - data_x_min
+        data_y_range = data_y_max - data_y_min
+
+        # Fixed scale base ranges (at zoom=1, pan=0)
+        base_x_min = 0
+        base_x_max = ADC_MAX  # 2800
+        y_range = ADC_MAX - 700
+        base_y_max = y_range / 8  # 262.5
+        base_y_min = -y_range * 7 / 8  # -1837.5
+
+        base_x_range = base_x_max - base_x_min  # 2800
+        base_y_range = base_y_max - base_y_min  # 2100
+
+        # Calculate zoom needed to fit data
+        # zoom > 1 means zoom in (shows less), zoom < 1 means zoom out (shows more)
+        # We want the view to be large enough to contain the data
+        zoom_x = base_x_range / data_x_range if data_x_range > 0 else 1.0
+        zoom_y = base_y_range / data_y_range if data_y_range > 0 else 1.0
+
+        # Use the smaller zoom (zoom out more) to ensure everything fits
+        self.zoom_level = min(zoom_x, zoom_y)
+
+        # Don't zoom in beyond 1x when fitting
+        if self.zoom_level > 1.0:
+            self.zoom_level = 1.0
+
+        # Calculate pan to center the data
+        data_x_center = (data_x_min + data_x_max) / 2
+        data_y_center = (data_y_min + data_y_max) / 2
+
+        base_x_center = (base_x_min + base_x_max) / 2  # 1400
+        base_y_center = (base_y_min + base_y_max) / 2  # -787.5
+
+        # Pan offset: how much to shift the view center
+        self.pan_offset_x = data_x_center - base_x_center
+        self.pan_offset_y = data_y_center - base_y_center
+
+        print(f"Fit to window: zoom={self.zoom_level:.3f}x, pan=({self.pan_offset_x:.0f}, {self.pan_offset_y:.0f})")
+        print(f"  Data range: X=[{data_x_min:.0f}, {data_x_max:.0f}], Y=[{data_y_min:.0f}, {data_y_max:.0f}]")
+
+    def reset_view(self):
+        """Reset zoom and pan to default"""
+        self.zoom_level = 1.0
+        self.pan_offset_x = 0.0
+        self.pan_offset_y = 0.0
+        print("View reset to default")
+
     def draw_trace(self, ch1_voltage, ch2_voltage, ch1_current, ch2_current,
-                   color1, color2, rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=3):
+                   color1, color2, rect, x_min, x_max, y_min, y_max, line_width=3):
         """
         Helper function to draw a single trace (DUT1 and optionally DUT2)
-
-        floor_ratio: Position of Y=0 baseline (0.0=top, 1.0=bottom)
-                    In fixed mode: 7/8 = 0.875 (matches original C++)
-                    In auto mode: calculated from data range
+        Traces are drawn in the data coordinate system defined by x_min, x_max, y_min, y_max
         """
         # DUT1 (Blue/Dark Blue) - Black lead
         points1 = []
         for i in range(len(ch1_voltage)):
-            # X-axis normalization (voltage)
+            # Normalize to [0, 1] in the view window
             x_norm = (ch1_voltage[i] - x_min) / (x_max - x_min) if x_max != x_min else 0.5
-
-            # Y-axis normalization (current) - relative to floor
-            # Positive current (below floor), negative current (above floor)
-            y_offset = ch1_current[i] / (y_max - y_min) if y_max != y_min else 0
-            y_norm = floor_ratio + y_offset
-
-            # Clamp to visible range
-            y_norm = max(0.0, min(1.0, y_norm))
-            x_norm = max(0.0, min(1.0, x_norm))
+            y_norm = (ch1_current[i] - y_min) / (y_max - y_min) if y_max != y_min else 0.5
 
             # INVERTED per manual: right-to-left X, top-to-bottom Y
             px = int(rect.right - (x_norm * rect.width))
@@ -279,12 +350,7 @@ class CurveTracerDual:
             points2 = []
             for i in range(len(ch2_voltage)):
                 x_norm = (ch2_voltage[i] - x_min) / (x_max - x_min) if x_max != x_min else 0.5
-
-                y_offset = ch2_current[i] / (y_max - y_min) if y_max != y_min else 0
-                y_norm = floor_ratio + y_offset
-
-                y_norm = max(0.0, min(1.0, y_norm))
-                x_norm = max(0.0, min(1.0, x_norm))
+                y_norm = (ch2_current[i] - y_min) / (y_max - y_min) if y_max != y_min else 0.5
 
                 # INVERTED per manual
                 px = int(rect.right - (x_norm * rect.width))
@@ -306,6 +372,7 @@ class CurveTracerDual:
 
         Scaling modes:
         - Fixed (default): Matches original C++ with ADC_MAX=2800, floor at 7/8
+          - Supports pan and zoom navigation
         - Auto: Scales to fit data range
         """
         pygame.draw.rect(self.screen, GRID_BACKGROUND_COLOR, rect)
@@ -314,7 +381,7 @@ class CurveTracerDual:
         if self.auto_scale:
             title_text += " [AUTO-SCALE]"
         else:
-            title_text += " [FIXED SCALE]"
+            title_text += f" [FIXED SCALE] Zoom:{self.zoom_level:.2f}x"
         title = self.font.render(title_text, True, WHITE)
         title_rect = title.get_rect(center=(rect.centerx, rect.y - 30))
         self.screen.blit(title, title_rect)
@@ -371,21 +438,30 @@ class CurveTracerDual:
             if y_max == y_min:
                 y_max = y_min + 1
 
-            # Calculate floor position from data
-            floor_ratio = (0 - y_min) / (y_max - y_min) if y_min < 0 < y_max else 0.5
-
         else:
-            # FIXED SCALE MODE: Match original C++ code
-            x_min = 0
-            x_max = ADC_MAX  # 2800
+            # FIXED SCALE MODE: Match original C++ code with pan/zoom
+            # Base scale (at zoom=1, pan=0)
+            base_x_min = 0
+            base_x_max = ADC_MAX  # 2800
 
-            # Y-axis: Floor at 7/8 down, range optimized for typical curves
-            # Most space above floor (negative current), small space below (positive current)
+            # Y-axis: Floor at 7/8 down means most space is negative (above floor)
             y_range = ADC_MAX - 700  # 2100 ADC units total range
-            y_max = y_range / 8  # 262.5 (positive current, 1/8 of space)
-            y_min = -y_range * 7 / 8  # -1837.5 (negative current, 7/8 of space)
+            base_y_max = y_range / 8  # 262.5 (positive current, 1/8 of space below floor)
+            base_y_min = -y_range * 7 / 8  # -1837.5 (negative current, 7/8 of space above floor)
 
-            floor_ratio = FLOOR_RATIO  # 7/8 = 0.875
+            # Apply zoom - zoom > 1 means zoomed in (smaller range visible)
+            x_range_visible = (base_x_max - base_x_min) / self.zoom_level
+            y_range_visible = (base_y_max - base_y_min) / self.zoom_level
+
+            # Apply pan - pan shifts the center of the view
+            # pan_offset is in ADC units, positive offset shifts view in that direction
+            x_center = (base_x_max + base_x_min) / 2 + self.pan_offset_x
+            y_center = (base_y_max + base_y_min) / 2 + self.pan_offset_y
+
+            x_min = x_center - x_range_visible / 2
+            x_max = x_center + x_range_visible / 2
+            y_min = y_center - y_range_visible / 2
+            y_max = y_center + y_range_visible / 2
 
         # Grid
         for i in range(11):
@@ -394,22 +470,21 @@ class CurveTracerDual:
             y = rect.y + (i * rect.height) // 10
             pygame.draw.line(self.screen, GRID_COLOR, (rect.x, y), (rect.right, y), 1)
 
-        # Crosshairs at origin
-        if self.auto_scale:
-            # Auto-scale: origin based on data range
-            zero_x_norm = (0 - x_min) / (x_max - x_min) if x_min < 0 < x_max else 0.5
-            zero_y_norm = floor_ratio
-        else:
-            # Fixed scale: origin at ADC 2048 on X-axis, floor line on Y-axis
-            zero_x_norm = (ADC_ORIGIN - x_min) / (x_max - x_min)
-            zero_y_norm = floor_ratio  # 7/8 down
+        # Crosshairs at origin (ADC 2048 for voltage, 0 for current)
+        # These are fixed in the data coordinate system
+        zero_x_norm = (ADC_ORIGIN - x_min) / (x_max - x_min) if x_max != x_min else 0.5
+        zero_y_norm = (0 - y_min) / (y_max - y_min) if y_max != y_min else 0.5
 
-        # INVERTED per manual
-        zero_x_pos = int(rect.right - (zero_x_norm * rect.width))
-        zero_y_pos = int(rect.top + (zero_y_norm * rect.height))
+        # Only draw crosshairs if they're visible in viewport
+        if 0 <= zero_x_norm <= 1:
+            # INVERTED X axis
+            zero_x_pos = int(rect.right - (zero_x_norm * rect.width))
+            pygame.draw.line(self.screen, CROSSHAIR_COLOR, (zero_x_pos, rect.y), (zero_x_pos, rect.bottom), 2)
 
-        pygame.draw.line(self.screen, CROSSHAIR_COLOR, (zero_x_pos, rect.y), (zero_x_pos, rect.bottom), 2)
-        pygame.draw.line(self.screen, CROSSHAIR_COLOR, (rect.x, zero_y_pos), (rect.right, zero_y_pos), 2)
+        if 0 <= zero_y_norm <= 1:
+            # INVERTED Y axis
+            zero_y_pos = int(rect.top + (zero_y_norm * rect.height))
+            pygame.draw.line(self.screen, CROSSHAIR_COLOR, (rect.x, zero_y_pos), (rect.right, zero_y_pos), 2)
 
         # Draw traces based on mode
         if self.excitation_mode == 2 and len(self.ch1_std) > 0 and len(self.ch1_weak) > 0:
@@ -420,29 +495,29 @@ class CurveTracerDual:
                 self.draw_trace(self.ch1_voltage_std, self.ch2_voltage_std,
                                 self.ch1_std, self.ch2_std,
                                 DUT1_CH1_DIMMED, DUT2_CH2_DIMMED,
-                                rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=2)
+                                rect, x_min, x_max, y_min, y_max, line_width=2)
                 # Draw weak trace bright (current)
                 self.draw_trace(self.ch1_voltage_weak, self.ch2_voltage_weak,
                                 self.ch1_weak, self.ch2_weak,
                                 DUT1_CH1_BLACK_LEAD, DUT2_CH2_RED_LEAD,
-                                rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=3)
+                                rect, x_min, x_max, y_min, y_max, line_width=3)
             else:
                 # Just captured std, so weak is older - draw weak dimmed
                 self.draw_trace(self.ch1_voltage_weak, self.ch2_voltage_weak,
                                 self.ch1_weak, self.ch2_weak,
                                 DUT1_CH1_DIMMED, DUT2_CH2_DIMMED,
-                                rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=2)
+                                rect, x_min, x_max, y_min, y_max, line_width=2)
                 # Draw std trace bright (current)
                 self.draw_trace(self.ch1_voltage_std, self.ch2_voltage_std,
                                 self.ch1_std, self.ch2_std,
                                 DUT1_CH1_BLACK_LEAD, DUT2_CH2_RED_LEAD,
-                                rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=3)
+                                rect, x_min, x_max, y_min, y_max, line_width=3)
         else:
             # Normal mode - draw current trace only
             self.draw_trace(self.ch1_voltage, self.ch2_voltage,
                             self.ch1, self.ch2,
                             DUT1_CH1_BLACK_LEAD, DUT2_CH2_RED_LEAD,
-                            rect, x_min, x_max, y_min, y_max, floor_ratio, line_width=3)
+                            rect, x_min, x_max, y_min, y_max, line_width=3)
 
         # Axis labels - INVERTED per manual
 
@@ -532,15 +607,10 @@ class CurveTracerDual:
         pause_str = " [PAUSED]" if self.paused else ""
         single_str = " [SINGLE CH]" if self.single_channel else ""
         scale_str = " [AUTO]" if self.auto_scale else " [FIXED]"
-
-        status = f"Frame: {self.frame_count}  |  FPS: {self.fps:.1f}  |  Mode: {mode_str}{pause_str}{single_str}{scale_str}"
+        controls = "SPACE=mode P=pause S=single A=auto F=fit R=reset | Drag=pan Wheel=zoom"
+        status = f"{controls}  |  Frame: {self.frame_count}  |  FPS: {self.fps:.1f}  |  Mode: {mode_str}{pause_str}{single_str}{scale_str}"
         text = self.small_font.render(status, True, GRAY)
         self.screen.blit(text, (20, 15))
-
-        # Controls on second line
-        controls = "SPACE=mode P=pause S=single A=auto-scale Q=quit"
-        text2 = self.small_font.render(controls, True, GRAY)
-        self.screen.blit(text2, (20, 35))
 
     def run(self):
         """Main loop"""
@@ -568,13 +638,20 @@ class CurveTracerDual:
         print("  P        - Pause/Resume scanning")
         print("  S        - Single channel mode (Black trace only)")
         print("  A        - Toggle Auto-scale / Fixed scale")
+        print("  F        - Fit to window (auto zoom/pan to show all data)")
+        print("  R        - Reset view (zoom 1x, center)")
         print("  Q/ESC    - Quit")
+        print("\nMouse Controls (Fixed scale mode):")
+        print("  Click+Drag - Pan view")
+        print("  Wheel Up   - Zoom in")
+        print("  Wheel Down - Zoom out")
         print("=" * 70 + "\n")
 
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
                 elif event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_q, pygame.K_ESCAPE]:
                         running = False
@@ -596,6 +673,56 @@ class CurveTracerDual:
                         self.auto_scale = not self.auto_scale
                         scale_mode = "AUTO-SCALE" if self.auto_scale else "FIXED SCALE (matches C++)"
                         print(f"Scale mode: {scale_mode}")
+                    elif event.key == pygame.K_f:
+                        # Fit to window
+                        if not self.auto_scale:
+                            self.fit_to_window()
+                    elif event.key == pygame.K_r:
+                        # Reset view
+                        if not self.auto_scale:
+                            self.reset_view()
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if not self.auto_scale:
+                        if event.button == 1:  # Left click - start drag
+                            self.dragging = True
+                            self.drag_start_pos = event.pos
+                            self.drag_start_offset = (self.pan_offset_x, self.pan_offset_y)
+                        elif event.button == 4:  # Wheel up - zoom in
+                            self.zoom_level *= 1.2
+                            print(f"Zoom: {self.zoom_level:.2f}x")
+                        elif event.button == 5:  # Wheel down - zoom out
+                            self.zoom_level /= 1.2
+                            self.zoom_level = max(0.1, self.zoom_level)  # Don't zoom out too far
+                            print(f"Zoom: {self.zoom_level:.2f}x")
+
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if event.button == 1:  # Left click release
+                        self.dragging = False
+
+                elif event.type == pygame.MOUSEMOTION:
+                    if self.dragging and not self.auto_scale:
+                        # Calculate pan offset based on drag
+                        dx = event.pos[0] - self.drag_start_pos[0]
+                        dy = event.pos[1] - self.drag_start_pos[1]
+
+                        # Convert screen pixels to ADC units
+                        plot_width = self.width - 200
+                        plot_height = self.height - 200
+
+                        # Range visible at current zoom
+                        x_range_visible = ADC_MAX / self.zoom_level
+                        y_range_visible = (ADC_MAX - 700) / self.zoom_level
+
+                        # Convert pixels to ADC units
+                        # Account for inverted axes: dragging right should move view right (positive X)
+                        # Inverted X: right on screen = lower X values, so drag right = pan left (negative offset)
+                        x_offset_change = -dx * x_range_visible / plot_width
+                        # Inverted Y: down on screen = higher Y values, so drag down = pan up (positive offset)
+                        y_offset_change = -dy * y_range_visible / plot_height
+
+                        self.pan_offset_x = self.drag_start_offset[0] - x_offset_change
+                        self.pan_offset_y = self.drag_start_offset[1] + y_offset_change
 
             # Acquire data (skip if paused)
             if not self.paused and self.acquire():
