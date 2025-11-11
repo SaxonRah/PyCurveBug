@@ -1,1 +1,6 @@
 /.idea
+/pyinstaller_builds/dist
+/pyinstaller_builds/build
+pyinstaller_builds/PyCurveBug.spec
+pyinstaller_builds/PyCurveBug.py
+pyinstaller_builds/curvebug_config.json
