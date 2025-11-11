@@ -46,4 +46,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.ref_name }}" PyCurveBug-build-*/PyCurveBug-*.(zip|tar\.gz) --clobber
+          gh release upload "${{ github.ref_name }}" PyCurveBug-build-*/PyCurveBug-*.* --clobber
