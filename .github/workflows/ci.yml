@@ -16,4 +16,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Build on ${{ matrix.os }}
-        run: python3 pyinstaller_builds/build.py
+        run: |
+          ct pyinstaller_builds
+          python3 build.py
