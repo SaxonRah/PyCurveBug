@@ -39,6 +39,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: PyCurveBug*
+      - name: Dump the tree
+        run: |
+          find . -type f
       - name: Upload distribution
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
