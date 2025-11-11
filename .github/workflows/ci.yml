@@ -28,7 +28,7 @@ jobs:
           path: pyinstaller_builds/dist/
           if-no-files-found: 'error'
   release:
-    # if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag'
     name: Upload release artifacts
     runs-on: ubuntu-latest
     needs: Build
@@ -39,9 +39,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: PyCurveBug*
-      - name: Dump the tree
-        run: |
-          find . -type f
       - name: Upload distribution
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
