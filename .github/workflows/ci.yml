@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
       - name: Install MaOS deps
-        run: brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf pkg-config
+        run: brew install --with-python3 pygame
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
