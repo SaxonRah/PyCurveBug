@@ -1,6 +1,6 @@
 
 # The latest versions should be fine
-pygame; sys_platform == "linux"
+pygame
 pyserial
 numpy
 pyinstaller
