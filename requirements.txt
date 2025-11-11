@@ -1,0 +1,6 @@
+
+# The latest versions should be fine
+pygame
+pyserial
+numpy
+pyinstaller
