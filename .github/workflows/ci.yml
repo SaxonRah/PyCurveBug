@@ -17,5 +17,5 @@ jobs:
           pip install -r requirements.txt
       - name: Build on ${{ matrix.os }}
         run: |
-          ct pyinstaller_builds
+          cd pyinstaller_builds
           python3 build.py
