@@ -43,8 +43,7 @@ jobs:
         run: |
           find . -type f
       - name: Upload distribution
-        if: False  # Disable automatic upload for now
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.ref_name }}" PyCurveBug-build-*/PyCurveBug-*
+          gh release upload "${{ github.ref_name }}" PyCurveBug-build-*/PyCurveBug-*.(zip|tar\.gz) --clobber
