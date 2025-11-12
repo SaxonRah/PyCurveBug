@@ -18,6 +18,7 @@ PyCurveBug is a cross-platform alternative to the original Windows CurveBug soft
 - Auto-scaling for dynamic range adjustment
 - Inverted axes matching CurveBug manual specifications
 - Persistent settings configuration file with in app editor.
+- Runs without CurveBug and can AutoDetect CurveBug
 
 ## Requirements
 
@@ -221,20 +222,11 @@ Improvements and bug reports welcome! Key areas:
 
 ---
 
-## Building Native OS releases with PyInstaller
-By building native OS releases we can allow others to use a native application without needing python or any other of PyCurveBug requirements.
+## GitHub Build Action
+- Building no longer requires individuals to provide builds for an OS.
+  - sigurasg (Sigurður Ásgeirsson) has added a build action on GitHub for all the major OSes.
 
-#### Building Usage:
-Copy `PyCurveBug.py` and `curvebug_config.json` files in the same directory as `build.py` (pyinstaller_build)
-
-#### Run Build Script:
-* Windows: `python build.py` or double-click `build_windows.bat`
-* Linux: `python3 build.py` or `./build_linux.sh`
-* Linux/Mac: `python3 build.py` or `./build_macos.sh`
-
-The script should create a `dist` folder with your compiled executable and distribution packages.
-
-Get in touch with me, so I can upload your Linux/MacOS build in the releases section as I'm only able to build for Windows.
+(See `/pyinstaller_builds/Build.md` if you wish to build yourself.)
 
 ---
 
@@ -242,6 +234,7 @@ Get in touch with me, so I can upload your Linux/MacOS build in the releases sec
 
 - **Original CurveBug**: Robert Puckette, 2024-2025
 - **PyCurveBug Python Implementation**: Robert Valentine, 2025
+- **GitHub Build Action**: Sigurður Ásgeirsson, 2025
 - Based on initial USB reverse engineering and now original C++ source code analysis
 
 ## License
@@ -259,3 +252,4 @@ This software follows the same MIT licensing as the original CurveBug software. 
 - Corrected channel mapping from C++ source
 - Proper axis inversion per manual
 - Persistent configuration settings with in app editor
+- Runs without CurveBug and can AutoDetect CurveBug
