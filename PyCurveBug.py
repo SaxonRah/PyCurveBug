@@ -1018,6 +1018,7 @@ class CurveTracerDual:
                     debug_print(f"Auto-connected to {detected}")
                     self.config.set(detected, 'serial_port')
                     self.config.save_config()
+                    self.settings_window.serial_input.text = detected
                     return True
                 except:
                     pass
