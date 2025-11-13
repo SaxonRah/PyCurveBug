@@ -21,34 +21,43 @@ PyCurveBug is a cross-platform alternative to the original Windows CurveBug soft
 - Runs without CurveBug and can AutoDetect CurveBug
 
 ## Requirements
+### Hardware
+- vintageTEK CurveBug device
+- USB connection (appears as COM port)
 
-### Software
+### Built Binaries
+- None as far as we know. Just download and run!
+
+### Raw Python:
+#### Software
 - Python 3.7+
   - PySerial
   - PyGame
   - NumPy
 - **PyInstaller** *[only needed if building OS native applications]*
 
-### Hardware
-- vintageTEK CurveBug device
-- USB connection (appears as COM port)
-
 ## Installation
 
+#### Binaries:
+```bash
+# Download 
+```
+
+#### Python:
 ```bash
 # Install required packages
 pip install pyserial pygame numpy
 
 # Clone or download PyCurveBug.py
-# Edit "serial_port" in the curvebug_config.JSON file  (default: COM3)
+# It should auto-detect your CurveBug
 ```
 
 ## Configuration
-
-Editing the configuration section at the top of `PyCurveBug.py` is **no longer needed** as the software natively supports persistent settings via configuration file and has editable settings in the application.
+The software natively supports persistent settings via configuration file and has editable settings in the application. It will also autodetect your CurveBug if connected on startup.
 
 ## Usage
-
+- Just run the binary!
+- Or if you prefer running the code yourself:
 ```bash
 python PyCurveBug.py
 ```
@@ -114,12 +123,14 @@ python PyCurveBug.py
 - FPS (frames per second)
 - Current excitation mode
 - Pause/Single channel/Scale indicators
+- Connection status (Serial: CONNECTED / Serial: NOT CONNECTED)
 
 ### Bottom Info Panel
 - CH1/CH2 current ranges and statistics
 - DUT voltage ranges
 - Drive voltage range
 - Number of data points
+- Settings Button
 
 ### On-Screen Legend
 - Blue line: DUT1 (Black lead)
@@ -166,7 +177,7 @@ FLOOR_RATIO = 7/8           # 87.5% down (optimized for forward bias)
 Error: Connection to COM3 failed
 ```
 - Verify CurveBug is connected via USB
-- Check Device Manager (Windows) or `ls /dev/tty*` (Linux/Mac) for correct COM port
+- It should now auto-detect your CurveBug, if not Check Device Manager (Windows) or `ls /dev/tty*` (Linux/Mac) for correct COM port
 - Update `serial_port` in configuration json file
 - Try different baud rates if needed (default: 115200)
 
@@ -243,7 +254,7 @@ This software follows the same MIT licensing as the original CurveBug software. 
 
 ## Version History
 
-### v1.0 (Current)
+### v1.1 (Current)
 - Initial Python implementation
 - Fixed scale with pan/zoom
 - Auto-scale mode
