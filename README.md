@@ -40,7 +40,7 @@ PyCurveBug is a cross-platform alternative to the original Windows CurveBug soft
 
 #### Binaries:
 ```bash
-# Download 
+# Download latest Binary from the Releases page and Run!
 ```
 
 #### Python:
