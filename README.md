@@ -4,6 +4,8 @@
 
 **Note**: *This is an independent Python reimplementation based on reverse engineering and the original CurveBug C++ source code. For the official Windows application, please refer to vintageTEK.*
 
+**Note**: *Binaries may give false positives see [Issue #4](https://github.com/SaxonRah/PyCurveBug/issues/4)*
+
 ### Main Application
 ![MainApp.png](/screenshots/MainApp.png)
 ### Settings Window
