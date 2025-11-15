@@ -4,7 +4,17 @@
 
 **Note**: *This is an independent Python reimplementation based on reverse engineering and the original CurveBug C++ source code. For the official Windows application, please refer to vintageTEK.*
 
-**Note**: *Binaries may give false positives see [Issue #4](https://github.com/SaxonRah/PyCurveBug/issues/4)*
+---
+
+### **Note**: *Binaries may give false positives see [Issue #4](https://github.com/SaxonRah/PyCurveBug/issues/4)*
+I am working on fixing the false positives.
+
+ **_IF YOU DISLIKE THE FALSE POSITIVES ON ANTIVIRUS, PLEASE USE THE SINGLE WEBPAGE VERSION!_**
+- Just download the `WebCurveBug.html` in the releases section. 
+- The single webpage version requires Web Serial and is known to work on Chrome, Edge, Opera, Brave, and other Chromium-based browsers.
+- Web Serial API is not supported in Firefox or Safari.
+
+---
 
 ### Main Application
 ![MainApp.png](/screenshots/MainApp.png)
