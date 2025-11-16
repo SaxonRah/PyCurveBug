@@ -1,3 +1,5 @@
+# ARCHIVED - [PLEASE USE NEW RAYLIB VERSION WRITTEN IN C](https://github.com/SaxonRah/CurveBug)
+
 # PyCurveBug - Python Curve Viewer for vintageTEK CurveBug
 
 **A Python-based curve tracer viewer for the vintageTEK CurveBug hardware, providing real-time I-V characteristic visualization with dual DUT comparison capabilities.**
